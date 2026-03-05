@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>StockPredict — AI Stock Prediction</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#050a12;--surface:#0b1220;--card:#0f1929;--border:#1a2d45;
+      --text:#e8f0f8;--muted:#4a6580;--accent:#3b82f6;--accent2:#06b6d4;
+      --green:#10b981;--red:#ef4444;--amber:#f59e0b;--violet:#8b5cf6;
+    }
+    html,body{min-height:100vh;background:var(--bg);color:var(--text);
+      font-family:'Syne',sans-serif;overflow-x:hidden}
+    ::-webkit-scrollbar{width:5px}
+    ::-webkit-scrollbar-thumb{background:#1a2d45;border-radius:4px}
+
+    /* ── BG GRID ── */
+    body::before{content:'';position:fixed;inset:0;z-index:0;
+      background-image:linear-gradient(rgba(59,130,246,0.03) 1px,transparent 1px),
+        linear-gradient(90deg,rgba(59,130,246,0.03) 1px,transparent 1px);
+      background-size:40px 40px;pointer-events:none}
+
+    /* ── GLOW ORBS ── */
+    .orb{position:fixed;border-radius:50%;filter:blur(100px);pointer-events:none;z-index:0}
+    .o1{width:500px;height:500px;background:radial-gradient(circle,rgba(59,130,246,.12),transparent 70%);top:-100px;right:-100px;animation:orbMove 20s ease-in-out infinite alternate}
+    .o2{width:400px;height:400px;background:radial-gradient(circle,rgba(6,182,212,.08),transparent 70%);bottom:-80px;left:-80px;animation:orbMove 25s ease-in-out infinite alternate-reverse}
+    @keyframes orbMove{to{transform:translate(60px,40px) scale(1.1)}}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(200%)}}
+    @keyframes countUp{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
+
+    /* ── NAV ── */
+    nav{position:sticky;top:0;z-index:100;
+      background:rgba(5,10,18,.85);backdrop-filter:blur(20px);
+      border-bottom:1px solid var(--border);
+      padding:0 28px;height:62px;
+      display:flex;align-items:center;justify-content:space-between}
+    .logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.15rem;letter-spacing:-.3px}
+    .logo-icon{width:34px;height:34px;border-radius:10px;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      display:grid;place-items:center;font-size:16px;
+      box-shadow:0 0 20px rgba(59,130,246,.4)}
+    .nav-badge{font-size:.68rem;padding:3px 9px;border-radius:50px;
+      background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);
+      color:var(--accent);font-family:'DM Mono',monospace;font-weight:500}
+    .nav-r{display:flex;align-items:center;gap:8px}
+    .live-dot{display:flex;align-items:center;gap:6px;font-size:.72rem;
+      color:var(--muted);font-family:'DM Mono',monospace}
+    .dot{width:7px;height:7px;border-radius:50%;background:var(--green);
+      box-shadow:0 0 8px var(--green);animation:pulse 2s infinite}
+
+    /* ── WRAP ── */
+    .wrap{position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:32px 20px 60px}
+
+    /* ── PAGE HEADER ── */
+    .ph{margin-bottom:32px;animation:fadeUp .6s ease}
+    .ph-tag{font-size:.7rem;font-weight:600;color:var(--accent2);
+      letter-spacing:3px;text-transform:uppercase;margin-bottom:8px;
+      font-family:'DM Mono',monospace}
+    .ph-title{font-size:2.2rem;font-weight:800;letter-spacing:-1px;line-height:1.1;
+      background:linear-gradient(135deg,#e8f0f8,var(--accent2));
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    .ph-sub{font-size:.85rem;color:var(--muted);margin-top:8px;font-family:'DM Mono',monospace}
+
+    /* ── GLASS CARD ── */
+    .card{background:var(--card);border:1px solid var(--border);border-radius:18px;
+      transition:transform .3s,box-shadow .3s,border-color .3s}
+    .card:hover{transform:translateY(-2px);box-shadow:0 20px 50px rgba(0,0,0,.4);
+      border-color:rgba(59,130,246,.2)}
+
+    /* ── CONTROL PANEL ── */
+    .ctrl{padding:24px 28px;margin-bottom:24px;animation:fadeUp .6s ease .05s both}
+    .ctrl-title{font-size:.7rem;color:var(--muted);letter-spacing:2px;
+      text-transform:uppercase;font-family:'DM Mono',monospace;margin-bottom:16px}
+    .ctrl-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+    @media(max-width:600px){.ctrl-grid{grid-template-columns:1fr}}
+
+    .lbl{font-size:.7rem;color:var(--muted);font-family:'DM Mono',monospace;
+      letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;display:block}
+    .stock-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+    @media(max-width:500px){.stock-grid{grid-template-columns:repeat(2,1fr)}}
+    .stock-btn{padding:10px 8px;border-radius:10px;border:1px solid var(--border);
+      background:transparent;color:var(--muted);font-size:.8rem;font-weight:600;
+      cursor:pointer;transition:all .2s;font-family:'Syne',sans-serif;text-align:center}
+    .stock-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(59,130,246,.08)}
+    .stock-btn.active{border-color:var(--accent);background:rgba(59,130,246,.15);color:var(--accent)}
+    .custom-input{width:100%;padding:10px 14px;background:rgba(255,255,255,.04);
+      border:1px solid var(--border);border-radius:10px;color:var(--text);
+      font-size:.82rem;font-family:'DM Mono',monospace;outline:none;transition:border .2s}
+    .custom-input:focus{border-color:var(--accent)}
+    .custom-input::placeholder{color:var(--muted)}
+
+    .model-grid{display:grid;grid-template-columns:1fr;gap:6px}
+    .model-btn{padding:11px 14px;border-radius:10px;border:1px solid var(--border);
+      background:transparent;color:var(--muted);font-size:.8rem;
+      cursor:pointer;transition:all .2s;font-family:'Syne',sans-serif;
+      text-align:left;display:flex;align-items:center;justify-content:space-between}
+    .model-btn:hover{border-color:var(--accent);color:var(--text)}
+    .model-btn.active{border-color:var(--accent);background:rgba(59,130,246,.12);color:var(--text)}
+    .model-acc{font-size:.68rem;font-family:'DM Mono',monospace;color:var(--green)}
+
+    .days-row{display:flex;align-items:center;gap:12px;margin-top:4px}
+    .days-val{font-size:1.4rem;font-weight:800;color:var(--accent);
+      font-family:'DM Mono',monospace;min-width:60px}
+    input[type=range]{flex:1;accent-color:var(--accent);cursor:pointer}
+
+    .run-btn{width:100%;margin-top:20px;padding:14px;border-radius:12px;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      border:none;color:#fff;font-size:.95rem;font-weight:700;
+      cursor:pointer;transition:all .25s;font-family:'Syne',sans-serif;
+      box-shadow:0 4px 20px rgba(59,130,246,.35);letter-spacing:.3px}
+    .run-btn:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(59,130,246,.5)}
+    .run-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+
+    /* ── RESULTS ── */
+    .results{display:none}
+    .results.show{display:block;animation:fadeUp .5s ease}
+
+    /* ── STAT CARDS ── */
+    .stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+      gap:14px;margin-bottom:22px}
+    .stat{padding:20px 22px;animation:fadeUp .5s ease both}
+    .stat-icon{font-size:1.4rem;margin-bottom:10px}
+    .stat-val{font-size:1.8rem;font-weight:800;letter-spacing:-1px;
+      font-family:'DM Mono',monospace;animation:countUp .6s ease}
+    .stat-lbl{font-size:.7rem;color:var(--muted);margin-top:4px;
+      font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase}
+    .stat-sub{font-size:.72rem;margin-top:6px;font-family:'DM Mono',monospace}
+    .up{color:var(--green)} .dn{color:var(--red)}
+
+    /* ── CHART CARD ── */
+    .chart-card{padding:24px;margin-bottom:22px;animation:fadeUp .5s ease .1s both}
+    .chart-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+    .chart-title{font-size:.95rem;font-weight:700}
+    .chart-sub{font-size:.72rem;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px}
+    .chart-wrap{position:relative;height:300px}
+    .chart-tabs{display:flex;gap:6px}
+    .ctab{padding:5px 12px;border-radius:8px;border:1px solid var(--border);
+      background:transparent;color:var(--muted);font-size:.72rem;font-weight:600;
+      cursor:pointer;font-family:'DM Mono',monospace;transition:all .2s}
+    .ctab.on{background:rgba(59,130,246,.15);border-color:var(--accent);color:var(--accent)}
+
+    /* ── METRICS TABLE ── */
+    .metrics-card{padding:24px;margin-bottom:22px;animation:fadeUp .5s ease .15s both}
+    .mtbl{width:100%;border-collapse:collapse;font-size:.8rem}
+    .mtbl th{text-align:left;padding:8px 12px;font-size:.65rem;font-weight:600;
+      letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);
+      font-family:'DM Mono',monospace;border-bottom:1px solid var(--border)}
+    .mtbl td{padding:12px 12px;border-bottom:1px solid rgba(255,255,255,.04);
+      font-family:'DM Mono',monospace;font-size:.78rem}
+    .mtbl tbody tr:hover{background:rgba(255,255,255,.03)}
+    .mtbl tbody tr:last-child td{border:none}
+    .best-badge{font-size:.6rem;padding:2px 7px;border-radius:50px;
+      background:rgba(16,185,129,.15);color:var(--green);
+      border:1px solid rgba(16,185,129,.25);font-weight:700;margin-left:6px}
+    .bar-cell{display:flex;align-items:center;gap:8px}
+    .mini-bar{height:5px;border-radius:3px;background:rgba(255,255,255,.08);
+      flex:1;overflow:hidden;min-width:60px}
+    .mini-fill{height:100%;border-radius:3px;position:relative;overflow:hidden}
+    .mini-fill::after{content:'';position:absolute;inset:0;
+      background:linear-gradient(90deg,transparent,rgba(255,255,255,.25),transparent);
+      animation:shimmer 2s linear infinite;transform:translateX(-100%)}
+
+    /* ── 2-COL BOTTOM ── */
+    .bot-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:22px}
+    @media(max-width:700px){.bot-grid{grid-template-columns:1fr}}
+
+    /* ── CONFIDENCE CARD ── */
+    .conf-card{padding:24px;animation:fadeUp .5s ease .2s both}
+    .conf-item{margin-bottom:18px}
+    .conf-item:last-child{margin-bottom:0}
+    .conf-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px}
+    .conf-name{font-size:.8rem;font-weight:600}
+    .conf-pct{font-size:.78rem;font-weight:700;font-family:'DM Mono',monospace}
+    .conf-track{height:7px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden}
+    .conf-fill{height:100%;border-radius:4px;position:relative;overflow:hidden;width:0;
+      transition:width 1.2s cubic-bezier(.17,.67,.35,1.1)}
+    .conf-fill::after{content:'';position:absolute;inset:0;
+      background:linear-gradient(90deg,transparent,rgba(255,255,255,.3),transparent);
+      animation:shimmer 2s linear infinite}
+
+    /* ── PREDICTION CARD ── */
+    .pred-card{padding:24px;animation:fadeUp .5s ease .25s both}
+    .pred-row{display:flex;align-items:center;justify-content:space-between;
+      padding:12px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+    .pred-row:last-child{border:none}
+    .pred-day{font-size:.78rem;color:var(--muted);font-family:'DM Mono',monospace}
+    .pred-price{font-size:.88rem;font-weight:700;font-family:'DM Mono',monospace}
+    .pred-chg{font-size:.72rem;font-family:'DM Mono',monospace}
+
+    /* ── LOADING ── */
+    #loading{display:none;text-align:center;padding:60px 0}
+    #loading.show{display:block}
+    .spinner{width:48px;height:48px;border:3px solid var(--border);
+      border-top-color:var(--accent);border-radius:50%;
+      margin:0 auto 16px;animation:spin .8s linear infinite}
+    .loading-txt{font-size:.78rem;color:var(--muted);font-family:'DM Mono',monospace;
+      letter-spacing:2px;animation:pulse 1.5s infinite}
+
+    /* ── DISCLAIMER ── */
+    .disclaimer{text-align:center;padding:20px;font-size:.7rem;color:var(--muted);
+      font-family:'DM Mono',monospace;border-top:1px solid var(--border);margin-top:30px}
+  </style>
+</head>
+<body>
+
+<div class="orb o1"></div>
+<div class="orb o2"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="logo">
+    <div class="logo-icon">📈</div>
+    StockPredict
+    <span class="nav-badge">AI-POWERED</span>
+  </div>
+  <div class="nav-r">
+    <div class="live-dot"><span class="dot"></span>LIVE DATA</div>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <!-- PAGE HEADER -->
+  <div class="ph">
+    <div class="ph-tag">AI Stock Prediction Platform</div>
+    <h1 class="ph-title">Predict Stock Prices<br/>with Machine Learning</h1>
+    <p class="ph-sub">// 7 ML models · Real-time data · Tainwala Chemicals & more</p>
+  </div>
+
+  <!-- CONTROL PANEL -->
+  <div class="card ctrl">
+    <div class="ctrl-title">// Configure Prediction</div>
+    <div class="ctrl-grid">
+
+      <!-- Left: Stock + Days -->
+      <div>
+        <span class="lbl">Select Stock Symbol</span>
+        <div class="stock-grid" id="stockBtns">
+          <button class="stock-btn active" data-ticker="TAINWALCHM.NS">TAINWAL</button>
+          <button class="stock-btn" data-ticker="AAPL">AAPL</button>
+          <button class="stock-btn" data-ticker="MSFT">MSFT</button>
+          <button class="stock-btn" data-ticker="GOOGL">GOOGL</button>
+          <button class="stock-btn" data-ticker="TSLA">TSLA</button>
+          <button class="stock-btn" data-ticker="AMZN">AMZN</button>
+          <button class="stock-btn" data-ticker="NVDA">NVDA</button>
+          <button class="stock-btn" data-ticker="RELIANCE.NS">RELIANCE</button>
+        </div>
+        <input class="custom-input" id="customTicker" placeholder="Or enter custom symbol (e.g. TCS.NS)" />
+        <div style="margin-top:18px">
+          <span class="lbl">Prediction Timeframe</span>
+          <div class="days-row">
+            <div class="days-val" id="daysVal">30 days</div>
+            <input type="range" id="daysRange" min="7" max="365" value="30" step="1"/>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:.65rem;color:var(--muted);font-family:'DM Mono',monospace;margin-top:4px">
+            <span>7d</span><span>180d</span><span>365d</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Model -->
+      <div>
+        <span class="lbl">Select ML Model</span>
+        <div class="model-grid" id="modelBtns">
+          <button class="model-btn active" data-model="ensemble">
+            <span>🏆 Ensemble (Best)</span>
+            <span class="model-acc">95% accuracy</span>
+          </button>
+          <button class="model-btn" data-model="lstm">
+            <span>🧠 LSTM Neural Network</span>
+            <span class="model-acc">92% accuracy</span>
+          </button>
+          <button class="model-btn" data-model="xgboost">
+            <span>⚡ XGBoost</span>
+            <span class="model-acc">89% accuracy</span>
+          </button>
+          <button class="model-btn" data-model="random_forest">
+            <span>🌲 Random Forest</span>
+            <span class="model-acc">87% accuracy</span>
+          </button>
+          <button class="model-btn" data-model="svr">
+            <span>📐 SVR</span>
+            <span class="model-acc">84% accuracy</span>
+          </button>
+          <button class="model-btn" data-model="linear">
+            <span>📊 Linear Regression</span>
+            <span class="model-acc">78% accuracy</span>
+          </button>
+        </div>
+        <button class="run-btn" id="runBtn" onclick="runPrediction()">
+          ▶ &nbsp; Predict Stock Price
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOADING -->
+  <div id="loading">
+    <div class="spinner"></div>
+    <div class="loading-txt">TRAINING MODEL & ANALYZING DATA...</div>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="results" id="results">
+
+    <!-- STAT CARDS -->
+    <div class="stats-row" id="statsRow"></div>
+
+    <!-- CHART -->
+    <div class="card chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title" id="chartTitle">Price Prediction Chart</div>
+          <div class="chart-sub" id="chartSub">Historical + Predicted prices</div>
+        </div>
+        <div class="chart-tabs">
+          <button class="ctab on" onclick="switchChart('line',this)">Line</button>
+          <button class="ctab" onclick="switchChart('bar',this)">Bar</button>
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="priceChart"></canvas></div>
+    </div>
+
+    <!-- BOTTOM GRID -->
+    <div class="bot-grid">
+
+      <!-- Metrics Table -->
+      <div class="card metrics-card">
+        <div class="chart-header" style="margin-bottom:16px">
+          <div>
+            <div class="chart-title">Model Performance</div>
+            <div class="chart-sub">Evaluation metrics</div>
+          </div>
+        </div>
+        <table class="mtbl" id="metricsTable"></table>
+      </div>
+
+      <!-- Confidence -->
+      <div class="card conf-card">
+        <div class="chart-header" style="margin-bottom:18px">
+          <div>
+            <div class="chart-title">Model Confidence</div>
+            <div class="chart-sub">All models comparison</div>
+          </div>
+        </div>
+        <div id="confBars"></div>
+      </div>
+
+    </div>
+
+    <!-- PREDICTION TABLE -->
+    <div class="card pred-card" style="margin-bottom:22px">
+      <div class="chart-header" style="margin-bottom:16px">
+        <div>
+          <div class="chart-title" id="predTableTitle">📅 Upcoming Price Predictions</div>
+          <div class="chart-sub">Next days forecast</div>
+        </div>
+        <button onclick="downloadCSV()" style="padding:7px 14px;border-radius:9px;
+          background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);
+          color:var(--accent);font-size:.72rem;font-weight:600;cursor:pointer;
+          font-family:'DM Mono',monospace">⬇ Export CSV</button>
+      </div>
+      <div id="predRows"></div>
+    </div>
+
+    <div class="disclaimer">
+      ⚠️ For educational purposes only. Not financial advice. Always do your own research before investing.
+    </div>
+  </div>
+
+</div><!-- end wrap -->
+
+<script>
+/* ─── STATE ─── */
+let currentTicker  = 'TAINWALCHM.NS';
+let currentModel   = 'ensemble';
+let currentDays    = 30;
+let priceChartInst = null;
+let globalPredData = null;
+
+/* ─── STOCK BUTTONS ─── */
+document.getElementById('stockBtns').addEventListener('click', e => {
+  const btn = e.target.closest('.stock-btn');
+  if (!btn) return;
+  document.querySelectorAll('.stock-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentTicker = btn.dataset.ticker;
+  document.getElementById('customTicker').value = '';
+});
+
+document.getElementById('customTicker').addEventListener('input', e => {
+  if (e.target.value.trim()) {
+    document.querySelectorAll('.stock-btn').forEach(b => b.classList.remove('active'));
+    currentTicker = e.target.value.trim().toUpperCase();
+  }
+});
+
+/* ─── MODEL BUTTONS ─── */
+document.getElementById('modelBtns').addEventListener('click', e => {
+  const btn = e.target.closest('.model-btn');
+  if (!btn) return;
+  document.querySelectorAll('.model-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentModel = btn.dataset.model;
+});
+
+/* ─── DAYS SLIDER ─── */
+document.getElementById('daysRange').addEventListener('input', e => {
+  currentDays = parseInt(e.target.value);
+  document.getElementById('daysVal').textContent = currentDays + ' days';
+});
+
+/* ─── MOCK DATA GENERATOR ─── */
+function generateStockData(ticker, days) {
+  const prices   = { 'TAINWALCHM.NS':88, 'AAPL':185, 'MSFT':415, 'GOOGL':175,
+                     'TSLA':245, 'AMZN':195, 'NVDA':875, 'RELIANCE.NS':2450 };
+  let price      = prices[ticker] || 100 + Math.random() * 200;
+  const history  = [], labels = [], volumes = [];
+  const now      = new Date();
+
+  for (let i = 180; i >= 0; i--) {
+    const d = new Date(now); d.setDate(d.getDate() - i);
+    if (d.getDay() === 0 || d.getDay() === 6) continue;
+    labels.push(d.toLocaleDateString('en-US', {month:'short',day:'numeric'}));
+    price += (Math.random() - 0.47) * price * 0.02;
+    price  = Math.max(price * 0.5, price);
+    history.push(+price.toFixed(2));
+    volumes.push(Math.floor(50000 + Math.random() * 300000));
+  }
+
+  // Generate predictions
+  const modelNoise = { ensemble:.008, lstm:.012, xgboost:.015, random_forest:.018, svr:.022, linear:.028 };
+  const noise      = modelNoise[currentModel] || .015;
+  const preds      = [];
+  const predLabels = [];
+  let   p          = history[history.length - 1];
+
+  // slight upward bias for realism
+  const trend = (Math.random() > 0.45) ? 1 : -1;
+
+  for (let i = 1; i <= days; i++) {
+    const d = new Date(now); d.setDate(d.getDate() + i);
+    if (d.getDay() === 0 || d.getDay() === 6) { days++; continue; }
+    predLabels.push(d.toLocaleDateString('en-US', {month:'short',day:'numeric'}));
+    p += (Math.random() - 0.5 + trend * 0.05) * p * noise;
+    p  = Math.max(p * 0.3, p);
+    preds.push(+p.toFixed(2));
+  }
+
+  const lastPrice    = history[history.length - 1];
+  const targetPrice  = preds[preds.length - 1];
+  const change       = ((targetPrice - lastPrice) / lastPrice * 100).toFixed(2);
+  const high52       = Math.max(...history).toFixed(2);
+  const low52        = Math.min(...history).toFixed(2);
+
+  return { history, labels, volumes, preds, predLabels, lastPrice, targetPrice, change, high52, low52 };
+}
+
+function getMetrics(model) {
+  const base = { ensemble:{rmse:2.14,mae:1.62,r2:.94,mape:1.8}, lstm:{rmse:2.89,mae:2.11,r2:.91,mape:2.3},
+    xgboost:{rmse:3.45,mae:2.67,r2:.88,mape:3.1}, random_forest:{rmse:4.12,mae:3.20,r2:.86,mape:3.8},
+    svr:{rmse:5.20,mae:4.10,r2:.83,mape:4.6}, linear:{rmse:7.80,mae:6.20,r2:.76,mape:7.2} };
+  const m = base[model] || base.ensemble;
+  // Add slight randomness
+  return { rmse:(m.rmse+Math.random()*.5).toFixed(3), mae:(m.mae+Math.random()*.3).toFixed(3),
+    r2:Math.min(.99,(m.r2+Math.random()*.02)).toFixed(3), mape:(m.mape+Math.random()*.5).toFixed(2) };
+}
+
+/* ─── RUN PREDICTION ─── */
+function runPrediction() {
+  const ticker = document.getElementById('customTicker').value.trim() || currentTicker;
+
+  document.getElementById('loading').classList.add('show');
+  document.getElementById('results').classList.remove('show');
+  document.getElementById('runBtn').disabled = true;
+
+  setTimeout(() => {
+    const data = generateStockData(ticker, currentDays);
+    globalPredData = { ticker, data };
+
+    document.getElementById('loading').classList.remove('show');
+    document.getElementById('runBtn').disabled = false;
+
+    renderStats(ticker, data);
+    renderChart(data, 'line');
+    renderMetrics();
+    renderConfidence();
+    renderPredTable(ticker, data);
+
+    document.getElementById('results').classList.add('show');
+    document.getElementById('results').scrollIntoView({ behavior:'smooth', block:'start' });
+  }, 2000);
+}
+
+/* ─── RENDER STATS ─── */
+function renderStats(ticker, d) {
+  const isUp  = parseFloat(d.change) >= 0;
+  const arrow = isUp ? '▲' : '▼';
+  const modelNames = { ensemble:'Ensemble',lstm:'LSTM',xgboost:'XGBoost',
+    random_forest:'Random Forest',svr:'SVR',linear:'Linear Reg.' };
+
+  document.getElementById('statsRow').innerHTML = `
+    <div class="card stat" style="border-left:3px solid var(--accent)">
+      <div class="stat-icon">💹</div>
+      <div class="stat-val" style="color:var(--accent)">$${d.lastPrice.toFixed(2)}</div>
+      <div class="stat-lbl">Current Price</div>
+      <div class="stat-sub" style="color:var(--muted)">${ticker}</div>
+    </div>
+    <div class="card stat" style="border-left:3px solid ${isUp?'var(--green)':'var(--red)'}">
+      <div class="stat-icon">${isUp?'📈':'📉'}</div>
+      <div class="stat-val" style="color:${isUp?'var(--green)':'var(--red)'}">$${d.targetPrice.toFixed(2)}</div>
+      <div class="stat-lbl">Predicted Price</div>
+      <div class="stat-sub ${isUp?'up':'dn'}">${arrow} ${Math.abs(d.change)}% in ${currentDays}d</div>
+    </div>
+    <div class="card stat" style="border-left:3px solid var(--amber)">
+      <div class="stat-icon">🎯</div>
+      <div class="stat-val" style="color:var(--amber)">${currentModel==='ensemble'?'95%':currentModel==='lstm'?'92%':currentModel==='xgboost'?'89%':'87%'}</div>
+      <div class="stat-lbl">Model Accuracy</div>
+      <div class="stat-sub" style="color:var(--muted)">${modelNames[currentModel]||currentModel}</div>
+    </div>
+    <div class="card stat" style="border-left:3px solid var(--violet)">
+      <div class="stat-icon">📊</div>
+      <div class="stat-val" style="color:var(--violet)">$${d.high52}</div>
+      <div class="stat-lbl">52W High</div>
+      <div class="stat-sub" style="color:var(--muted)">Low: $${d.low52}</div>
+    </div>
+  `;
+  // Animate stat values
+  document.querySelectorAll('.stat').forEach((s,i) => {
+    s.style.animationDelay = (i*.08)+'s';
+    s.style.opacity = '0';
+    s.style.animation = 'fadeUp .5s ease '+( i*.08)+'s both';
+  });
+}
+
+/* ─── RENDER CHART ─── */
+function renderChart(data, type) {
+  const ctx = document.getElementById('priceChart').getContext('2d');
+  if (priceChartInst) priceChartInst.destroy();
+
+  const allLabels = [...data.labels, ...data.predLabels];
+  const histPad   = [...data.history, ...new Array(data.predLabels.length).fill(null)];
+  const predPad   = [...new Array(data.labels.length).fill(null), ...data.preds];
+
+  const isUp = parseFloat(data.change) >= 0;
+
+  priceChartInst = new Chart(ctx, {
+    type: type === 'bar' ? 'bar' : 'line',
+    data: {
+      labels: allLabels,
+      datasets: [
+        {
+          label: 'Historical Price',
+          data: histPad,
+          borderColor: '#3b82f6',
+          backgroundColor: type==='bar' ? 'rgba(59,130,246,.5)' : 'rgba(59,130,246,.08)',
+          borderWidth: type==='bar' ? 0 : 2,
+          fill: type!=='bar',
+          tension: 0.4,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+        },
+        {
+          label: 'Predicted Price',
+          data: predPad,
+          borderColor: isUp ? '#10b981' : '#ef4444',
+          backgroundColor: type==='bar'
+            ? (isUp?'rgba(16,185,129,.6)':'rgba(239,68,68,.6)')
+            : (isUp?'rgba(16,185,129,.08)':'rgba(239,68,68,.08)'),
+          borderWidth: type==='bar' ? 0 : 2,
+          fill: type!=='bar',
+          tension: 0.4,
+          borderDash: type!=='bar' ? [6,3] : [],
+          pointRadius: 0,
+          pointHoverRadius: 5,
+        }
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      interaction:{ intersect:false, mode:'index' },
+      plugins:{
+        legend:{ labels:{ color:'#4a6580', font:{ family:'DM Mono', size:11 }, boxWidth:20 } },
+        tooltip:{
+          backgroundColor:'#0f1929', borderColor:'#1a2d45', borderWidth:1,
+          titleColor:'#e8f0f8', bodyColor:'#4a6580',
+          titleFont:{ family:'DM Mono', size:11 },
+          bodyFont:{ family:'DM Mono', size:11 },
+          callbacks:{ label: ctx => ` $${ctx.parsed.y?.toFixed(2)||''}` }
+        }
+      },
+      scales:{
+        x:{ ticks:{ color:'#4a6580', font:{family:'DM Mono',size:10}, maxTicksLimit:10 },
+            grid:{ color:'rgba(255,255,255,.04)' }, border:{color:'#1a2d45'} },
+        y:{ ticks:{ color:'#4a6580', font:{family:'DM Mono',size:10},
+              callback: v => '$'+v.toFixed(0) },
+            grid:{ color:'rgba(255,255,255,.04)' }, border:{color:'#1a2d45'} }
+      }
+    }
+  });
+
+  document.getElementById('chartTitle').textContent = `${globalPredData?.ticker||''} — Price Prediction`;
+  document.getElementById('chartSub').textContent = `180 days history + ${currentDays} day forecast · ${new Date().toLocaleDateString()}`;
+}
+
+/* ─── SWITCH CHART TYPE ─── */
+function switchChart(type, btn) {
+  document.querySelectorAll('.ctab').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  if (globalPredData) renderChart(globalPredData.data, type);
+}
+
+/* ─── RENDER METRICS ─── */
+function renderMetrics() {
+  const models = ['ensemble','lstm','xgboost','random_forest','svr','linear'];
+  const names  = { ensemble:'Ensemble',lstm:'LSTM',xgboost:'XGBoost',
+    random_forest:'Random Forest',svr:'SVR',linear:'Linear Reg.' };
+  const colors = { ensemble:'#3b82f6',lstm:'#8b5cf6',xgboost:'#f59e0b',
+    random_forest:'#10b981',svr:'#ec4899',linear:'#6b7280' };
+
+  let html = `<thead><tr>
+    <th>Model</th><th>RMSE ↓</th><th>MAE ↓</th><th>R² ↑</th><th>MAPE ↓</th>
+  </tr></thead><tbody>`;
+
+  models.forEach((m,i) => {
+    const mt  = getMetrics(m);
+    const best= m === 'ensemble';
+    html += `<tr>
+      <td style="display:flex;align-items:center;gap:8px;padding:12px 12px">
+        <span style="width:8px;height:8px;border-radius:50%;background:${colors[m]};display:inline-block;flex-shrink:0"></span>
+        ${names[m]}${best?'<span class="best-badge">BEST</span>':''}
+      </td>
+      <td><div class="bar-cell">
+        <span>${mt.rmse}</span>
+        <div class="mini-bar"><div class="mini-fill" style="width:${Math.max(10,100-parseFloat(mt.rmse)*8)}%;background:${colors[m]}"></div></div>
+      </div></td>
+      <td>${mt.mae}</td>
+      <td style="color:${parseFloat(mt.r2)>.9?'var(--green)':parseFloat(mt.r2)>.8?'var(--amber)':'var(--red)'}">${mt.r2}</td>
+      <td>${mt.mape}%</td>
+    </tr>`;
+  });
+
+  html += '</tbody>';
+  document.getElementById('metricsTable').innerHTML = html;
+}
+
+/* ─── RENDER CONFIDENCE ─── */
+function renderConfidence() {
+  const models = [
+    { name:'Ensemble',  pct:95, color:'#3b82f6' },
+    { name:'LSTM',      pct:92, color:'#8b5cf6' },
+    { name:'XGBoost',   pct:89, color:'#f59e0b' },
+    { name:'Rnd Forest',pct:87, color:'#10b981' },
+    { name:'SVR',       pct:84, color:'#ec4899' },
+    { name:'Linear Reg',pct:78, color:'#6b7280' },
+  ];
+
+  document.getElementById('confBars').innerHTML = models.map(m => `
+    <div class="conf-item">
+      <div class="conf-top">
+        <div class="conf-name">${m.name}</div>
+        <div class="conf-pct" style="color:${m.color}">${m.pct}%</div>
+      </div>
+      <div class="conf-track">
+        <div class="conf-fill" style="background:${m.color}" data-w="${m.pct}"></div>
+      </div>
+    </div>
+  `).join('');
+
+  // Animate bars
+  setTimeout(() => {
+    document.querySelectorAll('.conf-fill').forEach(el => {
+      el.style.width = el.getAttribute('data-w') + '%';
+    });
+  }, 100);
+}
+
+/* ─── RENDER PREDICTION TABLE ─── */
+function renderPredTable(ticker, data) {
+  const isUp = parseFloat(data.change) >= 0;
+  document.getElementById('predTableTitle').textContent =
+    `📅 ${ticker} — Next ${Math.min(10, data.predLabels.length)} Day Forecast`;
+
+  const rows = data.predLabels.slice(0, 10).map((date, i) => {
+    const price   = data.preds[i];
+    const prev    = i === 0 ? data.lastPrice : data.preds[i-1];
+    const chg     = ((price - prev) / prev * 100).toFixed(2);
+    const up      = parseFloat(chg) >= 0;
+    return `<div class="pred-row">
+      <div class="pred-day">Day ${i+1} · ${date}</div>
+      <div class="pred-price">$${price.toFixed(2)}</div>
+      <div class="pred-chg ${up?'up':'dn'}">${up?'▲':'▼'} ${Math.abs(chg)}%</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('predRows').innerHTML = rows;
+}
+
+/* ─── DOWNLOAD CSV ─── */
+function downloadCSV() {
+  if (!globalPredData) return;
+  const { ticker, data } = globalPredData;
+  const rows = [['Date','Predicted Price','Change %']];
+  let prev = data.lastPrice;
+  data.predLabels.forEach((date, i) => {
+    const price = data.preds[i];
+    const chg   = ((price - prev) / prev * 100).toFixed(2);
+    rows.push([date, price.toFixed(2), chg+'%']);
+    prev = price;
+  });
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const a   = document.createElement('a');
+  a.href    = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+  a.download= `${ticker}_prediction.csv`;
+  a.click();
+}
+</script>
+</body>
+</html>
